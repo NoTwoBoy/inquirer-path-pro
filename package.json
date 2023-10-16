@@ -3,7 +3,7 @@
   "description": "An Inquirer extension to support path questions(based on inquirer-path: https://github.com/aam229/inquirer-path).",
   "author": "NoTwoBoy (http://github.com/NoTwoBoy)",
   "license": "MIT",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/NoTwoBoy/inquirer-path-pro.git"
