@@ -24,7 +24,7 @@ const questions = [
     type: "path",
     name: "path",
     message: "Enter a path",
-    default: process.cwd(),
+    default: process.cwd() + "/README.md",
     validate: (answer) => (exists(answer) ? true : "The path does not exist"),
   },
   {

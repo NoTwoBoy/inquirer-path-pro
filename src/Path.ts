@@ -1,5 +1,5 @@
 import fs from "fs";
-import path from "path";
+import path from "node:path";
 
 /**
  * A system path that may or may not exist. If the path points to

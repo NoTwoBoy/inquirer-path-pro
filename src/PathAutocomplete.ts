@@ -1,7 +1,7 @@
 // @flow
 
 import fs from "fs";
-import path from "path";
+import path from "node:path";
 import Path from "./Path";
 
 /**
@@ -16,14 +16,18 @@ export default class PathAutocomplete {
   matches: Path[] | null;
   matchIndex: number;
 
-  constructor(cwd: string, directoryOnly: boolean = false) {
+  constructor(
+    cwd: string,
+    defaultPath?: string,
+    directoryOnly: boolean = false
+  ) {
     this.cwd = new Path(cwd);
     if (!this.cwd.isExistingDirectory()) {
       throw new Error(
         `The provided working directory ${cwd} does not exist or is not a directory.`
       );
     }
-    this.path = this.cwd;
+    this.path = defaultPath ? new Path(this.cwd, defaultPath) : this.cwd;
     this.matches = null;
     this.matchIndex = -1;
     this.directoryOnly = directoryOnly;

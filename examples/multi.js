@@ -6,7 +6,7 @@ inquirer.registerPrompt("path", PathPrompt);
 
 function exists(path) {
   try {
-    fs.accessSync(path, fs.constants.R_OK);
+    fs.accessSync(path, fs.R_OK);
     return true;
   } catch (error) {
     return false;

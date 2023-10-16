@@ -1,1 +1,3 @@
-export * as PathPrompt from "./PathPrompt";
+import PathPrompt from "./PathPrompt";
+
+export { PathPrompt };

@@ -4,11 +4,33 @@ import Choices from "inquirer/lib/objects/choices";
 
 import PathAutocomplete from "./PathAutocomplete";
 import PathPromptRenderer from "./PathPromptRenderer";
+import { Question } from "inquirer";
 
 const TAB_KEY = "tab";
 const ENTER_KEY = "return";
 const ESCAPE_KEY = "escape";
 
+type PathAnswers<M extends boolean, D extends any = string> = M extends true
+  ? string[]
+  : D;
+type PathAnswersObj<M extends boolean> = { [n: string]: PathAnswers<M> };
+interface PathQuestion<M extends boolean> extends Question<PathAnswersObj<M>> {
+  name: string;
+  message: string;
+  default: PathAnswers<M>;
+  cwd: string;
+  multi: boolean;
+  choices: Choices;
+  directoryOnly: boolean;
+  validate: (
+    path: string,
+    answers?: PathAnswersObj<M>,
+    paths?: PathAnswers<M, null>
+  ) => boolean | string | Promise<boolean | string>;
+  filter: (path: PathAnswers<M>) => any;
+  when: (answers?: PathAnswersObj<M>) => boolean;
+  [k: string]: any;
+}
 declare type KeyPressEvent$Value = string;
 declare type KeyPressEvent$Key = {
   name: string;
@@ -43,21 +65,12 @@ declare type KeyPressEvent$Key = {
  * @param rl An instance of readline.Interface
  * @param answers The answers provided by the user to other prompts
  */
-export default class PathPrompt extends BasePrompt {
-  opt: {
-    name: string;
-    message: string;
-    default: string;
-    multi: boolean;
-    choices: Choices;
-    validate: (path: string) => boolean;
-    filter: (path: string) => any;
-    when: (answers: {}) => boolean;
-    [k: string]: any;
-  };
+export default class PathPrompt<M extends boolean = false> extends BasePrompt {
+  opt: PathQuestion<M>;
   rl: InquirerReadLine;
   listeners: {
     SIGINT: Function[];
+    [k: string]: Function[];
   };
   bindedOnExit: () => void;
   bindedOnKeyPress: (
@@ -71,22 +84,32 @@ export default class PathPrompt extends BasePrompt {
   isTryingExit: boolean;
 
   constructor(
-    question: {
+    question: Partial<PathQuestion<M>> & {
       name: string;
       message: string;
-      cwd?: string;
-      multi?: boolean;
-      directoryOnly?: boolean;
-      default?: string;
-      validate?: (path: string) => boolean;
-      filter?: (path: string) => any;
-      when?: (answers: {}) => boolean;
-      [k: string]: any;
     },
     rl: InquirerReadLine,
     answers: {}
   ) {
     super(question, rl, answers);
+
+    const multi = question.multi ?? false;
+    const cwd = question.cwd || process.cwd();
+    const defaultPathAnswer =
+      question.default || ((multi ? [cwd] : cwd) as PathAnswers<M>);
+
+    this.opt = {
+      ...question,
+      cwd,
+      default: defaultPathAnswer,
+      multi,
+      directoryOnly: question.directoryOnly ?? false,
+      choices: question.choices || ([] as unknown as Choices),
+      validate: question.validate || ((_p: string | string[]) => true),
+      filter: question.filter || ((_p: PathAnswers<M>) => _p),
+      when: question.when || (() => true),
+    };
+    this.rl = rl;
 
     // bind event listeners
     this.bindedOnExit = this.onExit.bind(this);
@@ -94,7 +117,8 @@ export default class PathPrompt extends BasePrompt {
 
     this.paths = [];
     this.autocomplete = new PathAutocomplete(
-      question.cwd || question.default || process.cwd(),
+      cwd,
+      this.getDefaultPath(),
       question.directoryOnly
     );
     this.renderer = new PathPromptRenderer(
@@ -110,12 +134,18 @@ export default class PathPrompt extends BasePrompt {
     };
   }
 
+  getDefaultPath(): string {
+    return Array.isArray(this.opt.default)
+      ? this.opt.default[this.paths.length]
+      : this.opt.default;
+  }
+
   /**
    * Runs the path prompt.
    * @param callback - Called when the prompt has been answered successfully
    * @returns
    */
-  _run(callback: (value: string | string[]) => void): PathPrompt {
+  _run(callback: (value: string | string[]) => void): PathPrompt<M> {
     this.answerCallback = callback;
     // backup event listeners so we can rebind them later
     this.listeners.SIGINT = this.rl.listeners("SIGINT");
@@ -146,7 +176,7 @@ export default class PathPrompt extends BasePrompt {
           this.autocomplete.nextMatch(!key.shift);
           this.renderer.render();
         } catch (err) {
-          this.renderer.renderError(err.message);
+          this.renderer.renderError((err as Error).message);
         }
         break;
       case ENTER_KEY:
@@ -214,26 +244,25 @@ export default class PathPrompt extends BasePrompt {
    * @param submitMulti If set to true, submit all answers
    */
   submitAnswer(submitMulti: boolean = false) {
-    const answer =
-      this.opt.multi && submitMulti
-        ? this.paths
-        : this.autocomplete.getPath().getAbsolutePath();
+    const path = this.autocomplete.getPath().getAbsolutePath();
+    const paths = (this.opt.multi ? this.paths : null) as PathAnswers<M, null>;
+    const answer = (
+      this.opt.multi && submitMulti ? paths : path
+    ) as PathAnswers<M>;
 
     const validate = runAsync(this.opt.validate);
     const filter = runAsync(this.opt.filter);
 
-    let promiseChain = validate(
-      answer,
-      this.answers,
-      this.opt.multi ? this.paths : null
-    )
-      .then((isValid) => {
-        if (isValid !== true) {
-          throw isValid;
-        }
-        return answer;
-      })
-      .then(filter);
+    let promiseChain = (
+      submitMulti
+        ? Promise.resolve(answer)
+        : validate(path, this.answers, paths).then((isValid) => {
+            if (isValid !== true) {
+              throw isValid;
+            }
+            return answer;
+          })
+    ).then(filter);
 
     if (!this.opt.multi) {
       // Render the final path
@@ -249,6 +278,7 @@ export default class PathPrompt extends BasePrompt {
         // Create a new autocomplete instance for the new prompt
         this.autocomplete = new PathAutocomplete(
           this.autocomplete.getWorkingDirectory().getAbsolutePath(),
+          this.getDefaultPath(),
           this.autocomplete.isDirectoryOnly()
         );
         this.renderer.renderNewPrompt(finalAnswer, this.autocomplete);
@@ -276,7 +306,7 @@ export default class PathPrompt extends BasePrompt {
     this.rl.input.removeListener("keypress", this.bindedOnKeyPress);
     Object.keys(this.listeners).forEach((eventName) => {
       this.listeners[eventName].forEach((listener) => {
-        this.rl.addListener(eventName, listener);
+        this.rl.addListener(eventName, listener as (...args: any[]) => void);
       });
     });
   }

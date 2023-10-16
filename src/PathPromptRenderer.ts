@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import path from "path";
+import path from "node:path";
 import readline from "readline";
 import ScreenManager from "inquirer/lib/utils/screen-manager";
 
