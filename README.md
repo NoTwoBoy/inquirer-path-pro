@@ -2,9 +2,16 @@
 
 This project provides a `path` prompt for the [Inquirer](https://github.com/SBoudrias/Inquirer.js/) module. It allows the user to pick a path using a similar interface as [zsh](http://www.zsh.org/).
 
-This repo is based-on [inquirer-path](https://github.com/aam229/inquirer-path), and made these changes:
+#### This repo is based-on [inquirer-path](https://github.com/aam229/inquirer-path), and made these changes:
 
-- Fix: the `default` value can be a file path.
+#### Feature:
+
+- Refactor all code with typescript.
+- will be more...
+
+#### Fix:
+
+- The `default` option can be a file path.
 
 ## Usage
 
